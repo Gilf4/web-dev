@@ -2,7 +2,9 @@ package repository
 
 import (
 	"GoForBeginner/internal/db/models"
+	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/context"
 )
@@ -26,23 +28,21 @@ func NewUserStore(pool *pgxpool.Pool) *UserStore {
 func (s *UserStore) GetUserByEmail(email string) (*models.User, error) {
 	user := new(models.User)
 
-	query := "SELECT * FROM users WHERE email = $1"
+	query := "SELECT id, first_name, last_name, email, password, nickname FROM users WHERE email = $1"
 
-	rows, err := s.db.Query(context.Background(), query, email)
+	err := s.db.QueryRow(context.Background(), query, email).Scan(
+		&user.ID,
+		&user.FirstName,
+		&user.LastName,
+		&user.Email,
+		&user.Password,
+		&user.Nickname,
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query user by email: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		err := rows.Scan(user)
-		if err != nil {
-			return nil, fmt.Errorf("unable to scan row: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Пользователь не найден
 		}
-	}
-
-	if user.ID == 0 {
-		return nil, fmt.Errorf("user not found")
+		return nil, fmt.Errorf("failed to query user by email: %w", err)
 	}
 
 	return user, nil
@@ -71,11 +71,11 @@ func (s *UserStore) GetUserByID(id int) (*models.User, error) {
 }
 
 func (s *UserStore) CreateUser(user models.User) error {
-	query := "INSERT INTO users (firstName, lastName, email, password) VALUES ($1, $2, $3, $4)"
+	query := "INSERT INTO users (first_name, last_name, email, password, nickname) VALUES ($1, $2, $3, $4, $5)"
 
-	_, err := s.db.Exec(context.Background(), query, user.FirstName, user.LastName, user.Email, user.Password)
+	_, err := s.db.Exec(context.Background(), query, user.FirstName, user.LastName, user.Email, user.Password, user.Nickname)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 	return nil
 }
