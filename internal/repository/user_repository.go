@@ -10,7 +10,7 @@ import (
 type UserStoreRepository interface {
 	GetUserByEmail(email string) (*models.User, error)
 	GetUserByID(id int) (*models.User, error)
-	CreateUser(user *models.User) error
+	CreateUser(user models.User) error
 }
 
 type UserStore struct {
@@ -59,21 +59,18 @@ func (s *UserStore) GetUserByID(id int) (*models.User, error) {
 	}
 	defer rows.Close()
 
-	for rows.Next() {
+	if rows.Next() {
 		err := rows.Scan(user)
 		if err != nil {
 			return nil, fmt.Errorf("unable to scan row: %w", err)
 		}
+		return user, nil
 	}
 
-	if user.ID == 0 {
-		return nil, fmt.Errorf("user not found")
-	}
-
-	return user, nil
+	return nil, nil
 }
 
-func (s *UserStore) CreateUser(user *models.User) error {
+func (s *UserStore) CreateUser(user models.User) error {
 	query := "INSERT INTO users (firstName, lastName, email, password) VALUES ($1, $2, $3, $4)"
 
 	_, err := s.db.Exec(context.Background(), query, user.FirstName, user.LastName, user.Email, user.Password)
